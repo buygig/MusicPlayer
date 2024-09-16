@@ -1,5 +1,5 @@
 <template>
-  <input type="file" ref="fileInput" @change="handleFileChange" />
+  <input type="file" ref="fileInput" @change="handleFileChange" multiple />
   <div class="container">
     <div class="record" @click="addFile" :class="{ bigger: Playing }"></div>
     <div class="control">
@@ -43,11 +43,24 @@
       </div>
     </div>
   </div>
+
+  <div class="song-list">
+    <h3>Song List</h3>
+    <ul>
+      <li
+        v-for="(song, index) in songList"
+        :key="index"
+        @click="selectSong(index)"
+      >
+        {{ song.name }}
+      </li>
+    </ul>
+  </div>
 </template>
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from "vue";
-
+import { getBase64Image } from "../utils";
 // 音频上下文
 const audioContext = new AudioContext();
 
@@ -74,6 +87,10 @@ let timer = null;
 // 是否正在拖动
 const isDragging = ref(false);
 
+// New refs for song list
+const songList = ref([]);
+const currentSongIndex = ref(-1);
+
 // 添加文件
 const addFile = () => {
   if (fileInput.value) {
@@ -83,13 +100,24 @@ const addFile = () => {
 
 // 处理文件变化
 const handleFileChange = (event) => {
-  const selectedFile = event.target.files[0];
-  if (selectedFile) {
-    file.value = selectedFile;
-    fileName.value = selectedFile.name;
-    loadFile(selectedFile);
-    readAsArrayBuffer(selectedFile).then(initSound);
+  const selectedFiles = event.target.files;
+  if (selectedFiles.length > 0) {
+    songList.value = Array.from(selectedFiles).map((file) => ({
+      file,
+      name: file.name,
+    }));
+    selectSong(0);
   }
+};
+
+// New function to select a song
+const selectSong = (index) => {
+  currentSongIndex.value = index;
+  const selectedSong = songList.value[index];
+  file.value = selectedSong.file;
+  fileName.value = selectedSong.name;
+  loadFile(selectedSong.file);
+  readAsArrayBuffer(selectedSong.file).then(initSound);
 };
 
 // 读取文件为 ArrayBuffer
@@ -125,21 +153,11 @@ function showTags(url) {
   }
 }
 
-// 获取 Base64 编码的图片
-function getBase64Image(image) {
-  const base64String = image.data.reduce(
-    (acc, byte) => acc + String.fromCharCode(byte),
-    ""
-  );
-  return `data:${image.format};base64,${window.btoa(base64String)}`;
-}
-
 // 初始化音频
 function initSound(arrayBuffer) {
   audioContext.decodeAudioData(arrayBuffer).then((decodedBuffer) => {
     buffer = decodedBuffer;
     pMax.value = buffer.duration;
-    updateProgressWidth();
   });
 }
 
@@ -174,15 +192,15 @@ const playEvent = () => {
     Playing.value = false;
     record.style["animation-play-state"] = "paused";
   } else {
+    console.log(pValue.value, 7777);
     if (buffer) {
       if (audioSource) {
         audioContext.resume();
       } else {
-        playSound(pValue.value);
+        playSound();
       }
       Playing.value = true;
       record.style["animation-play-state"] = "running";
-      startProgressUpdate();
     } else {
       console.error("Audio not loaded yet");
     }
@@ -194,21 +212,14 @@ function startProgressUpdate() {
   clearInterval(timer);
   timer = setInterval(() => {
     if (audioContext.state === "running") {
-      audioPlaybackTime.value = audioContext.currentTime;
+      // 更新音频播放时间
+      audioPlaybackTime.value += 0.1;
+      // 如果没有在拖动进度条，更新播放进度
       if (!isDragging.value) {
         pValue.value = audioPlaybackTime.value;
       }
     }
-  }, 100);
-}
-
-// 更新进度条宽度
-function updateProgressWidth() {
-  if (pMax.value > 0) {
-    progressWidth.value = (pValue.value / pMax.value) * 100;
-  } else {
-    progressWidth.value = 0;
-  }
+  }, 100); // 每100毫秒更新一次，以获得更平滑的进度更新
 }
 
 // 开始拖动进度条
@@ -230,8 +241,8 @@ function drag(event) {
   );
 
   const newTime = percentage * pMax.value;
+  audioPlaybackTime.value = newTime;
   pValue.value = newTime;
-  updateProgressWidth();
 
   if (Playing.value) {
     if (audioSource) {
@@ -249,33 +260,26 @@ function stopDrag() {
 
 // 监听播放进度
 watch(pValue, (newValue) => {
+  console.log(newValue, 444);
+  progressWidth.value = (newValue / pMax.value) * 100;
   if (newValue >= pMax.value) {
     resetPlayback();
   }
 });
-
-// 更新进度条
-// watch([pValue, pMax], ([newValue, maxValue]) => {
-//   if (maxValue > 0) {
-//     progressWidth.value = Math.min((newValue / maxValue) * 100, 100);
-//   } else {
-//     progressWidth.value = 0;
-//   }
-// });
 
 // 重置播放状态
 function resetPlayback() {
   Playing.value = false;
   pValue.value = 0;
   clearInterval(timer);
+  audioSource = null;
   timer = null;
   document.querySelector(".record").style["animation-play-state"] = "paused";
-}
 
-// 组件挂载时
-onMounted(() => {
-  updateProgressWidth();
-});
+  if (currentSongIndex.value < songList.value.length - 1) {
+    selectSong(currentSongIndex.value + 1);
+  }
+}
 
 // 组件卸载时
 onUnmounted(() => {
@@ -333,11 +337,13 @@ input {
   animation-play-state: paused;
 
   transition: all 0.5s;
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0.2);
 }
 
 .bigger {
   width: 120px;
   height: 120px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
 }
 
 @keyframes turn {
@@ -446,5 +452,41 @@ input {
 
 .up {
   transform: translate(-50%, -165%);
+}
+
+.song-list {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 200px;
+  max-height: 300px;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px;
+  box-shadow: 0 10px 20px rgba(111, 83, 91, 0.3);
+}
+
+.song-list h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.song-list ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.song-list li {
+  padding: 5px 0;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.song-list li:hover {
+  background-color: #f0f0f0;
 }
 </style>

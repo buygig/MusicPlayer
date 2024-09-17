@@ -1,5 +1,5 @@
 <script setup>
-import Audio from "./components/Audio.vue";
+import Audio from "./components/MusicPlayer/index.vue";
 </script>
 
 <template>
@@ -8,4 +8,3 @@ import Audio from "./components/Audio.vue";
     <Audio />
   </div>
 </template>
-

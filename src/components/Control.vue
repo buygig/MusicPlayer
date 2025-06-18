@@ -1,35 +1,56 @@
 <template>
   <div class="control">
-    <div class="prev btn" @click="$emit('prevSong')">
+    <button
+      class="prev btn"
+      type="button"
+      aria-label="上一首"
+      @click="onPrevClick"
+    >
       <svg>
         <use href="/allsvg.svg#prev"></use>
       </svg>
-    </div>
+    </button>
 
-    <div class="play btn" @click="$emit('playSong')">
+    <button
+      class="play btn"
+      type="button"
+      :aria-label="playing ? '暂停' : '播放'"
+      @click="onPlayClick"
+    >
       <svg id="play" v-if="!playing">
         <use href="/allsvg.svg#play"></use>
       </svg>
-
       <svg id="stop" v-else>
         <use href="/allsvg.svg#stop"></use>
       </svg>
-    </div>
+    </button>
 
-    <div class="next btn" @click="$emit('nextSong')">
+    <button
+      class="next btn"
+      type="button"
+      aria-label="下一首"
+      @click="onNextClick"
+    >
       <svg>
         <use href="/allsvg.svg#next"></use>
       </svg>
-    </div>
+    </button>
   </div>
 </template>
 
 <script setup>
 defineProps({
-  playing: Boolean,
+  playing: {
+    type: Boolean,
+    required: true,
+  },
 });
 
-defineEmits(["prevSong", "playSong", "nextSong"]);
+const emit = defineEmits(["prevSong", "playSong", "nextSong"]);
+
+const onPrevClick = () => emit("prevSong");
+const onPlayClick = () => emit("playSong");
+const onNextClick = () => emit("nextSong");
 </script>
 
 <style scoped>
@@ -42,6 +63,14 @@ defineEmits(["prevSong", "playSong", "nextSong"]);
 }
 
 .btn {
+  /* 重置按钮样式 */
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  /* 已有样式 */
   width: 80px;
   height: 80px;
   display: flex;
